@@ -1,4 +1,16 @@
-﻿function New-MigaduMailbox {
+﻿function Get-MigaduMailbox {
+    [CmdletBinding()]
+    param (
+        [Parameter(Mandatory)]$Domain,
+        [Parameter(Mandatory)]$EmailAddressLocalPart,
+        [Parameter(Mandatory)]$XAuthorizationToken,
+        [Parameter(Mandatory)]$XAuthorizationEmail
+    )
+
+    Invoke-MigaduAPI -MethodType Get -EntityType mailboxes -EntityID $EmailAddressLocalPart -Domain $Domain -XAuthorizationToken $XAuthorizationToken -XAuthorizationEmail $XAuthorizationEmail 
+}
+
+function New-MigaduMailbox {
     param (
         [Parameter(Mandatory)]$Domain,
         [Parameter(Mandatory)]$EmailAddressLocalPart,
@@ -14,7 +26,7 @@
         "mailbox[password]" = $Password
     }    
 
-    Invoke-MigaduAPI -EntityType mailboxes -Domain $Domain -XAuthorizationToken $XAuthorizationToken -XAuthorizationEmail $XAuthorizationEmail -Parameters $RequestParameters
+    Invoke-MigaduAPI -MethodType Post -EntityType mailboxes -Domain $Domain -XAuthorizationToken $XAuthorizationToken -XAuthorizationEmail $XAuthorizationEmail -Parameters $RequestParameters
 }
 
 function Remove-MigaduMailbox {
@@ -50,30 +62,34 @@ function Get-MigaduAPIURI {
 }
 
 function Invoke-MigaduAPI {
+    [CmdletBinding()]
     param (
         $Domain,
         $EntityType,
         $EntityID,
         $XAuthorizationToken,
         $XAuthorizationEmail,
-        $_migadu_key,
-        $LastUser,
+        [ValidateSet("Get","Post")]$MethodType,
         $Parameters
-    )    
-    $Guid = New-Guid
-    $Boundary = $Guid.ToString()
-    $Body = $Parameters | ConvertTo-MultiPartFormData -Boundary $Boundary
-
-    $Session = New-Object Microsoft.PowerShell.Commands.WebRequestSession    
-
+    )
     $URI = Get-MigaduAPIURI -Domain $Domain -EntityType $EntityType -EntityID $EntityID
 
-    Invoke-WebRequest -Method Post -Uri $URI -Headers @{
-        "X-Authorization-Token" = $XAuthorizationToken
-        "X-Authorization-Email" = $XAuthorizationEmail
-    } -ContentType "multipart/form-data; boundary=$Boundary" -WebSession $Session -Body $Body
-}
+    if ($MethodType -eq "Post") {
+        $Guid = New-Guid
+        $Boundary = $Guid.ToString()
+        $Body = $Parameters | ConvertTo-MultiPartFormData -Boundary $Boundary
 
+        Invoke-RestMethod -Method Post -Uri $URI -Headers @{
+            "X-Authorization-Token" = $XAuthorizationToken
+            "X-Authorization-Email" = $XAuthorizationEmail
+        } -ContentType "multipart/form-data; boundary=$Boundary" -Body $Body
+    } elseif ($MethodType -eq "Get") {
+        Invoke-RestMethod -Method Get -Uri $URI -Headers @{
+            "X-Authorization-Token" = $XAuthorizationToken
+            "X-Authorization-Email" = $XAuthorizationEmail
+        }
+    }
+}
 
 function ConvertTo-MultiPartFormData {
     param (
